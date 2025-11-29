@@ -6,7 +6,7 @@ echo.
 
 :: Create virtual environment
 echo Creating virtual environment...
-py -m venv venv
+python -m venv venv
 if errorlevel 1 (
     echo Failed to create virtual environment!
     pause
@@ -42,7 +42,7 @@ echo ========================================
 echo   Starting PrintsAlot V2...
 echo ========================================
 echo.
-py -m src.main
+python -m src.main
 
 pause
 

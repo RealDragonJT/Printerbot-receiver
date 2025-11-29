@@ -18,7 +18,7 @@ call venv\Scripts\activate.bat
 :: Run the application
 echo Starting PrintsAlot V2...
 echo.
-py -m src.main
+python -m src.main
 
 pause
 
