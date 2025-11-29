@@ -1,19 +1,65 @@
-from nicegui import ui, app, background_tasks
-from .client import printer_client, CLIENT_VERSION
-from .config_manager import config_manager
+"""
+Main entry point for PrintsAlot Receiver.
+Runs the NiceGUI web interface with system tray icon.
+"""
+# CRITICAL: Fix stdout/stderr BEFORE any other imports
+# uvicorn/logging checks sys.stdout.isatty() which fails if stdout is None
+import sys
+import os
+
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, 'w')
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, 'w')
+if sys.stdin is None:
+    sys.stdin = open(os.devnull, 'r')
+
+# Now safe to import everything else
+import threading
 import asyncio
+import logging
+
+# Set up file logging for debugging (especially useful when running without console)
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'printsalot.log')
+if getattr(sys, 'frozen', False):
+    # Running as compiled exe - log next to exe
+    LOG_FILE = os.path.join(os.path.dirname(sys.executable), 'printsalot.log')
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE, mode='a'),
+    ]
+)
+logger = logging.getLogger('PrintsAlot')
+logger.info("PrintsAlot starting...")
+
+# Add src to path if running as script
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from nicegui import ui, app
+from src.client import printer_client, CLIENT_VERSION
+from src.config_manager import config_manager
+from src.tray import TrayIcon, setup_autostart, is_autostart_enabled
+
+# Default port for the web UI
+WEB_PORT = 8456
 
 # Global State
 connection_status = "Disconnected"
 pending_refresh = False
-update_info = None  # Will hold update check results
+update_info = None
+
 
 def update_status_label(label):
     label.text = f"Status: {connection_status}"
     if connection_status == "Connected":
-        label.classes('text-green-400')
+        label.classes('text-green-400', remove='text-red-400')
     else:
-        label.classes('text-red-400')
+        label.classes('text-red-400', remove='text-green-400')
+
 
 @ui.page('/')
 async def main_page():
@@ -106,7 +152,6 @@ async def main_page():
                         code = code_label.text
                         if code and code != "XXXX-XXXX":
                             cmd = f"/printer link {code}"
-                            # Code is alphanumeric only (XXXX-XXXX format), safe for clipboard
                             import json
                             safe_cmd = json.dumps(cmd)
                             await ui.run_javascript(f'navigator.clipboard.writeText({safe_cmd})')
@@ -127,7 +172,6 @@ async def main_page():
                 
                 current_settings = config_manager.get('printer_settings', {})
                 
-                # Inputs
                 width_input = ui.number(label='Printer Width (px)', value=current_settings.get('width', 384)).classes('w-full')
                 ui.label('Max 800px. Warning: < 350px may break layout.').classes('text-xs text-gray-400 mb-2')
                 
@@ -141,7 +185,6 @@ async def main_page():
                 auto_cut_input = ui.checkbox('Auto Cut Paper', value=current_settings.get('auto_cut', True)).classes('mt-2')
 
                 async def save_settings():
-                    # Validation
                     try:
                         width = int(width_input.value)
                         if width > 800:
@@ -168,9 +211,22 @@ async def main_page():
                         ui.notify(f'Error saving settings: {e}', type='negative')
 
                 ui.button('Save Settings', on_click=save_settings).classes('w-full mt-4 bg-primary text-white')
+            
+            # Autostart toggle
+            with ui.card().classes('w-full p-4'):
+                ui.label('System').classes('text-xl font-bold mb-4')
                 
-            ui.separator().classes('my-4')
-            ui.button('Launch Zadig (Driver Setup)', on_click=lambda: ui.notify('Launching Zadig...')).classes('w-full bg-gray-700')
+                autostart_enabled = is_autostart_enabled()
+                autostart_checkbox = ui.checkbox('Start with Windows', value=autostart_enabled).classes('w-full')
+                
+                def toggle_autostart():
+                    setup_autostart(autostart_checkbox.value)
+                    if autostart_checkbox.value:
+                        ui.notify('Autostart enabled', type='positive')
+                    else:
+                        ui.notify('Autostart disabled', type='info')
+                
+                autostart_checkbox.on('change', toggle_autostart)
 
         # Footer
         with ui.row().classes('w-full justify-center gap-4 mt-8 text-gray-500 text-sm'):
@@ -178,8 +234,87 @@ async def main_page():
             ui.link('Command Guide', 'https://printerbot.dragnai.dev/commands').classes('text-primary hover:underline')
             ui.link('Website', 'https://printerbot.dragnai.dev').classes('text-primary hover:underline')
 
-# Start Client in background
-app.on_startup(printer_client.connect)
-app.on_shutdown(printer_client.disconnect)
 
-ui.run(title="PrintsAlot Receiver", reload=False, dark=True)
+def run_tray(port: int):
+    """Run the system tray icon in a separate thread."""
+    tray = TrayIcon(port=port)
+    tray.run()
+
+
+def run_setup_dialog():
+    """Show a GUI dialog for first-time setup."""
+    import ctypes
+    
+    # Use Windows MessageBox for setup dialog
+    MB_YESNO = 0x04
+    MB_ICONQUESTION = 0x20
+    IDYES = 6
+    
+    result = ctypes.windll.user32.MessageBoxW(
+        0,
+        "Would you like PrintsAlot to start automatically when Windows starts?\n\n"
+        "You can change this later in the app settings.",
+        "PrintsAlot Setup",
+        MB_YESNO | MB_ICONQUESTION
+    )
+    
+    if result == IDYES:
+        if setup_autostart(True):
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "Autostart enabled!\n\nPrintsAlot will now start with Windows.",
+                "Setup Complete",
+                0x40  # MB_ICONINFORMATION
+            )
+        else:
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "Failed to enable autostart.\n\nYou can try again from the app settings.",
+                "Setup Error",
+                0x10  # MB_ICONERROR
+            )
+    else:
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Autostart not enabled.\n\nYou can enable it later in the app settings.",
+            "Setup Complete",
+            0x40  # MB_ICONINFORMATION
+        )
+
+
+def main():
+    """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='PrintsAlot Receiver')
+    parser.add_argument('--setup', action='store_true', help='Run first-time setup')
+    parser.add_argument('--no-tray', action='store_true', help='Run without system tray')
+    parser.add_argument('--port', type=int, default=WEB_PORT, help=f'Web UI port (default: {WEB_PORT})')
+    args = parser.parse_args()
+    
+    # First-time setup (uses GUI dialog, works without console)
+    if args.setup:
+        run_setup_dialog()
+    
+    # Start printer client connection
+    app.on_startup(printer_client.connect)
+    app.on_shutdown(printer_client.disconnect)
+    
+    # Start tray icon in background thread (unless disabled)
+    if not args.no_tray:
+        tray_thread = threading.Thread(target=run_tray, args=(args.port,), daemon=True)
+        tray_thread.start()
+    
+    # Run NiceGUI (this blocks)
+    ui.run(
+        title="PrintsAlot Receiver",
+        port=args.port,
+        reload=False,
+        dark=True,
+        show=False,  # Don't auto-open browser (tray handles this)
+    )
+
+
+if __name__ == "__main__":
+    main()
+

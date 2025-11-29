@@ -17,10 +17,15 @@ config.json
 .vscode/
 *.code-workspace
 
-# PyInstaller
+# PyInstaller Build Output
 build/
 dist/
-*.spec
+*.manifest
+*.exe
 
 # Logs
 *.log
+printsalot.log
+
+# IDE
+.idea/
