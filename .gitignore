@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+
+# Environment Variables
+.env
+
+# Configuration (contains sensitive token)
+config.json
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Logs
+*.log
