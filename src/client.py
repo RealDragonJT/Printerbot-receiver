@@ -6,7 +6,7 @@ from typing import Optional, Callable
 from .config_manager import config_manager
 
 # Current client version
-CLIENT_VERSION = "2.0.1"
+CLIENT_VERSION = "2.0.2"
 
 logger = logging.getLogger('PrintsAlot.client')
 
@@ -227,12 +227,16 @@ class PrinterClient:
                         
                         # Simple version comparison
                         update_available = self._compare_versions(CLIENT_VERSION, latest)
+                        is_prerelease = self._compare_versions(latest, CLIENT_VERSION)  # True if current > latest
+                        github_url = data.get('github_url', '')
                         
                         return {
                             'update_available': update_available,
+                            'is_prerelease': is_prerelease,
                             'current_version': CLIENT_VERSION,
                             'latest_version': latest,
-                            'download_url': download_url
+                            'download_url': download_url,
+                            'github_url': github_url
                         }
         except Exception as e:
             print(f"Update check failed: {e}")

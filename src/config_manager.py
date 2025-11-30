@@ -24,7 +24,7 @@ class ConfigManager:
         default_config = {
             "token": None,
             "printer_settings": {
-                "width": 576,
+                "width": 522,
                 "dither": "floyd"
             },
             "relay_url": "https://printerbot.dragnai.dev" 

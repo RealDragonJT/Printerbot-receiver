@@ -142,3 +142,4 @@ def is_autostart_enabled():
     except Exception:
         return False
 
+

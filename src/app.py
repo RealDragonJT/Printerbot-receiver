@@ -43,6 +43,7 @@ from nicegui import ui, app
 from src.client import printer_client, CLIENT_VERSION
 from src.config_manager import config_manager
 from src.tray import TrayIcon, setup_autostart, is_autostart_enabled
+from src.updater import updater
 
 # Default port for the web UI
 WEB_PORT = 8456
@@ -123,13 +124,58 @@ async def main_page():
                     with ui.column().classes('gap-0'):
                         ui.label('🔄 Update Available!').classes('text-yellow-400 font-bold')
                         ui.label(f"v{update_info.get('current_version', '?')} → v{update_info.get('latest_version', '?')}").classes('text-yellow-200 text-sm')
-                    ui.link('Download', update_info.get('download_url', '#')).classes('bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-500')
+                    
+                    with ui.row().classes('gap-2 items-center'):
+                        # Progress indicator (hidden by default)
+                        update_progress = ui.linear_progress(value=0, show_value=False).classes('w-24').style('display: none')
+                        update_status = ui.label('').classes('text-yellow-200 text-sm').style('display: none')
+                        
+                        # Update Now button (in-app update)
+                        async def do_update():
+                            download_url = update_info.get('download_url', '')
+                            if not download_url:
+                                ui.notify('No download URL available', type='negative')
+                                return
+                            
+                            # Show progress, hide button
+                            update_btn.style('display: none')
+                            github_link.style('display: none')
+                            update_progress.style('display: block')
+                            update_status.style('display: block')
+                            update_status.text = 'Starting download...'
+                            
+                            def on_progress(progress: int, status: str):
+                                update_progress.value = progress / 100
+                                if status == 'downloading':
+                                    update_status.text = f'Downloading... {progress}%'
+                                elif status == 'ready':
+                                    update_status.text = 'Applying update...'
+                                elif status == 'error':
+                                    update_status.text = f'Error: {updater.error_message}'
+                                    update_btn.style('display: block')
+                                    github_link.style('display: block')
+                            
+                            updater.on_progress(on_progress)
+                            
+                            success = await updater.download_and_apply(download_url)
+                            if not success:
+                                ui.notify('Update failed. Try downloading manually.', type='negative')
+                                update_btn.style('display: block')
+                                github_link.style('display: block')
+                                update_progress.style('display: none')
+                        
+                        update_btn = ui.button('Update Now', on_click=do_update).classes('bg-yellow-600 text-white hover:bg-yellow-500')
+                        github_link = ui.link('GitHub', update_info.get('github_url', '#')).classes('text-yellow-300 text-sm hover:underline')
         
         # Header
         with ui.row().classes('w-full justify-between items-center'):
             with ui.row().classes('items-center gap-2'):
                 ui.label('PrintsAlot Receiver').classes('text-2xl font-bold text-primary')
-                ui.label(f'v{CLIENT_VERSION}').classes('text-xs text-gray-500')
+                # Show "Prerelease" if running a version newer than public release
+                is_prerelease = update_info.get('is_prerelease', False) if update_info else False
+                version_text = f'Prerelease v{CLIENT_VERSION}' if is_prerelease else f'v{CLIENT_VERSION}'
+                version_classes = 'text-xs text-purple-400 font-semibold' if is_prerelease else 'text-xs text-gray-500'
+                ui.label(version_text).classes(version_classes)
             global status_label
             status_label = ui.label(f"Status: {connection_status}").classes('text-lg font-bold')
             update_status_label(status_label)

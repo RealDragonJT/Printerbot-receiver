@@ -80,17 +80,10 @@ python -m src.main
 1. Download and run [Zadig](https://zadig.akeo.ie/)
 2. Options > List All Devices
 3. Select your printer from the dropdown
-4. Ensure the target driver is **WinUSB**
+4. Ensure the target driver is **LibUsbK**
 5. Click "Replace Driver" or "Install Driver"
 
 ## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the app directory:
-```env
-RELAY_URL=https://printerbot.dragnai.dev
-```
 
 ### Config File
 
@@ -115,7 +108,7 @@ Settings are stored in `config.json`:
 2. **Left-click** the tray icon to open the web UI
 3. **Right-click** for menu: Open, Restart, Quit
 4. If not linked, copy the **Pairing Code** from the UI
-5. In Discord, run: `/printer link <code>`
+5. In Discord, run: `!printer link <code>` or `/printer link <code>`
 6. Configure your printer settings in the web UI
 
 ## Command Line Options
