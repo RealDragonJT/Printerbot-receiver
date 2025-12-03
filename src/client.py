@@ -58,6 +58,7 @@ class PrinterClient:
         settings = config_manager.get('printer_settings', {})
         # Ensure defaults
         auth.update({
+            'timezone': settings.get('timezone', 'UTC'),
             'width': settings.get('width', 384),
             'max_prints_per_day': settings.get('max_prints_per_day', 50),
             'max_prints_per_user_per_day': settings.get('max_prints_per_user_per_day', 5),

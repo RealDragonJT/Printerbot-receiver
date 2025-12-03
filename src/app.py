@@ -218,6 +218,39 @@ async def main_page():
                 
                 current_settings = config_manager.get('printer_settings', {})
                 
+                # Common timezones for dropdown
+                TIMEZONES = [
+                    "UTC",
+                    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+                    "America/Phoenix", "America/Anchorage", "Pacific/Honolulu",
+                    "America/Toronto", "America/Vancouver", "America/Mexico_City",
+                    "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Madrid", "Europe/Rome", "Europe/Moscow",
+                    "Asia/Tokyo", "Asia/Shanghai", "Asia/Hong_Kong", "Asia/Singapore", "Asia/Dubai", "Asia/Kolkata",
+                    "Australia/Sydney", "Australia/Melbourne", "Australia/Perth", "Australia/Brisbane",
+                    "Pacific/Auckland", "Pacific/Fiji",
+                ]
+                
+                # Timezone selector
+                current_tz = current_settings.get('timezone', 'UTC')
+                timezone_select = ui.select(
+                    label='Timezone',
+                    options=TIMEZONES,
+                    value=current_tz
+                ).classes('w-full')
+                
+                # Auto-detect timezone on first visit (if still UTC/default)
+                if current_tz == 'UTC':
+                    async def detect_timezone():
+                        detected_tz = await ui.run_javascript(
+                            'Intl.DateTimeFormat().resolvedOptions().timeZone'
+                        )
+                        if detected_tz and detected_tz in TIMEZONES:
+                            timezone_select.value = detected_tz
+                            ui.notify(f'Detected timezone: {detected_tz}', type='info')
+                    ui.timer(0.5, detect_timezone, once=True)
+                
+                ui.label('Used for timestamps on printed messages').classes('text-xs text-gray-400 mb-2')
+                
                 width_input = ui.number(label='Printer Width (px)', value=current_settings.get('width', 384)).classes('w-full')
                 ui.label('Max 800px. Warning: < 350px may break layout.').classes('text-xs text-gray-400 mb-2')
                 
@@ -243,6 +276,7 @@ async def main_page():
                         max_prints = int(max_prints_input.value)
                         
                         new_settings = {
+                            'timezone': timezone_select.value,
                             'width': width,
                             'max_prints_per_day': max_prints,
                             'max_prints_per_user_per_day': int(max_user_prints_input.value),
