@@ -230,8 +230,10 @@ async def main_page():
                     "Pacific/Auckland", "Pacific/Fiji",
                 ]
                 
-                # Timezone selector
-                current_tz = current_settings.get('timezone', 'UTC')
+                # Timezone selector - validate stored value is in options list
+                stored_tz = current_settings.get('timezone', 'UTC')
+                current_tz = stored_tz if stored_tz in TIMEZONES else 'UTC'
+                
                 timezone_select = ui.select(
                     label='Timezone',
                     options=TIMEZONES,
@@ -397,4 +399,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

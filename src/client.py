@@ -6,7 +6,7 @@ from typing import Optional, Callable
 from .config_manager import config_manager
 
 # Current client version
-CLIENT_VERSION = "2.0.2"
+CLIENT_VERSION = "2.0.3"
 
 logger = logging.getLogger('PrintsAlot.client')
 
